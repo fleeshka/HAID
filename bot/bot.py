@@ -49,7 +49,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Use Cohere NLP to extract structured products
         ai_response = olama_nlp_generate(user_message)
-        await update.message.reply_text(" Я выделил из запроса следующие продукты:\n\n" + ai_response)
+        await update.message.reply_text(ai_response)
 
     except Exception as e:
         logger.error(f"Error: {str(e)}")
