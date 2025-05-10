@@ -10,7 +10,15 @@ services:
     networks:
       - app-network
     mem_limit: 4g 
-
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    runtime: nvidia
 
     entrypoint: ["/bin/bash", "-c", "ollama serve & sleep 5 && ollama run llama3:instruct && tail -f /dev/null"]
     healthcheck:
