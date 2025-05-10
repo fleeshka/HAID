@@ -64,7 +64,7 @@ def get_products(
             axis=1
         )
 
-    result = filtered.drop(columns = ['availability', 'category'])
+    result = filtered.drop(columns = ['product_id','availability'])
 
     return result.to_dict(orient="records")
 
