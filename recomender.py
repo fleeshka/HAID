@@ -1,6 +1,5 @@
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
-from pprint import pprint
 
 '''recommends top-k products in category'''
 def recommend_top_k(products, category, budget=None, k=3, preferred_store=None):
@@ -51,16 +50,16 @@ def recommend(products,
 
     return recs
 
-if __name__ == "__main__":
-    from api_handler import get_products
-    products = get_products(need_unit_price=True)
-
-    result = recommend(
-        products,
-        categories=['молочка', 'сладкое', 'мясо'],
-        budget_map={'мясо':230},
-        preferred_store='магнит',
-        k=3
-    )
-
-    pprint(result, width=120)
+# if __name__ == "__main__":
+#     from api_handler import get_products
+#     products = get_products(need_unit_price=True)
+#
+#     result = recommend(
+#         products,
+#         categories=['молочка', 'сладкое', 'мясо'],
+#         budget_map={'мясо':230},
+#         preferred_store='магнит',
+#         k=3
+#     )
+#
+#     pprint(result, width=120)

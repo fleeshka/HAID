@@ -68,7 +68,7 @@ def get_products(
 
     return result.to_dict(orient="records")
 
-if __name__ == "__main__":
-    results = get_products(available=True)
-    for item in results:
-        print(item)
+# if __name__ == "__main__":
+#     results = get_products(available=True)
+#     for item in results:
+#         print(item)
