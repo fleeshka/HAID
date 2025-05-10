@@ -1,0 +1,43 @@
+services:
+  ollama:
+    image: ollama/ollama:latest 
+    container_name: ollama
+    ports:
+      - "11434:11434"  
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - app-network
+    mem_limit: 4g 
+
+
+    entrypoint: ["/bin/bash", "-c", "ollama serve & sleep 5 && ollama run llama3:instruct && tail -f /dev/null"]
+    healthcheck:
+      test: curl --fail http://ollama:11434/api/tags || exit 1
+      interval: 10s
+      timeout: 3s
+      retries: 30
+
+
+  bot:
+    build:
+      context: . 
+      dockerfile: Dockerfile
+    container_name: telegram-bot
+    depends_on:
+      - ollama
+    env_file:
+      - .env  
+    volumes:
+      - ./data:/app/data 
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  ollama-data: 

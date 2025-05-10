@@ -1,6 +1,6 @@
 import requests
 
-OLLAMA_API = "http://localhost:11434/api/chat"
+OLLAMA_API = "http://ollama:11434/api/chat"
 
 def olama_nlp_generate(prompt, temperature=0.7, max_tokens=400):
     system_prompt = (
@@ -22,8 +22,7 @@ def olama_nlp_generate(prompt, temperature=0.7, max_tokens=400):
 
     try:
         response = requests.post(OLLAMA_API, json=payload)
-        status = response.raise_for_status()
         return response.json()["message"]["content"]
     except requests.exceptions.RequestException as e:
         print(f"Ошибка при запросе к Ollama API: {e}")
-        return f"Ошибка при запросе к Ollama API: {e} \n STATUS {status}\n Sorry, I encountered an error while processing your request."
+        return f"Ошибка при запросе к Ollama API: {e} \n\n Sorry, I encountered an error while processing your request."
