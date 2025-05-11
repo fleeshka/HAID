@@ -145,7 +145,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Не удалось найти категорию для следующих товаров, они будут исключены из списка: {', '.join(unknown_products)}")
             logger.info(f"Unknown products: {', '.join(unknown_products)}")
         # todo: say that i see, you want to but bembem bem
-        # await update.message.reply_text("Не удалось извлечь продукты из сообщения.")
+        if extracted_categories:
+            recognized = ', '.join(extracted_categories.keys())
+            await update.message.reply_text(f"Вижу, ты хочешь купить: {recognized}")
         # todo: ask about budget constraints for categories
         # todo: ask abt preferred shop and say that products from preferred shop are more likely to be recommended
         # Generate recommendations
