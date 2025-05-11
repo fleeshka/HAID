@@ -92,28 +92,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("Пожалуйста, выбери: 'Да, всё верно' или 'Хочу изменить список'.")
             return
 
-        elif state == "confirmed":
-            provided_recipes = recomend_recipies(get_context(user_id, "products_extracted"))
-            await update.message.reply_text(provided_recipes)
-
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("Добавить новые продукты", callback_data="add_new")],
-                [InlineKeyboardButton("Ничего не добавляй", callback_data="no_add")]
-            ])
-            await update.message.reply_text("Хочешь что-то добавить?", reply_markup=keyboard)
-            set_state(user_id, "additional")
-            return
-        elif state == "confirmed":
-            provided_recipes = recomend_recipies(get_context(user_id, "products_extracted"))
-            await update.message.reply_text(provided_recipes)
-
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("Добавить новые продукты", callback_data="add_new")],
-                [InlineKeyboardButton("Ничего не добавляй", callback_data="no_add")]
-            ])
-            await update.message.reply_text("Хочешь что-то добавить?", reply_markup=keyboard)
-            set_state(user_id, "additional")
-            return
         elif state == "additional":
             if "новые продукты" in user_message.lower():
                 # TODO update list using ollama
