@@ -144,18 +144,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 f"Не удалось найти категорию для следующих товаров, они будут исключены из списка: {', '.join(unknown_products)}")
             logger.info(f"Unknown products: {', '.join(unknown_products)}")
-
+        # todo: say that i see, you want to but bembem bem
+        # await update.message.reply_text("Не удалось извлечь продукты из сообщения.")
+        # todo: ask about budget constraints for categories
+        # todo: ask abt preferred shop and say that products from preferred shop are more likely to be recommended
         # Generate recommendations
-        recommendations = recommend(all_products, extracted_categories)
+        await update.message.reply_text("Сравниваю цены в магазинах, чтоб найти наилучшие предложения для тебя!")
+        recommendations = recommend(all_products, extracted_categories, k=2)
         logger.info(f"Generated {len(recommendations)} recommendation categories.")
 
         # Prepare the response text
-        response_text = f"{ai_response.strip()}\n\nПроанализировав цены в Пятерочке и Магните, я рекомендую тебе:\n"
+        # response_text = f"{ai_response.strip()}\n\nПроанализировав цены в Пятерочке и Магните, я рекомендую тебе:\n"
+        # for category, items in recommendations.items():
+        #     response_text += f"\n📦 {category}:\n"
+        #     for item in items:
+        #         response_text += f"• {item['name']} — {item['price']}₽ ({item['store']})\n"
+        #         logger.debug(f"Recommendation: {item['name']} — {item['price']}₽ ({item['store']})")
+        response_text = f"{ai_response.strip()}\n\nПроанализировав цены в Пятерочке и Магните, рекомендую тебе:\n"
         for category, items in recommendations.items():
-            response_text += f"\n📦 {category}:\n"
+            response_text += f"\n📦 {category.capitalize()}:\n"
             for item in items:
-                response_text += f"• {item['name']} — {item['price']}₽ ({item['store']})\n"
-                logger.debug(f"Recommendation: {item['name']} — {item['price']}₽ ({item['store']})")
+                name = item['product_name_ru']
+                product_type = item['product_type']
+                quantity = item['quantity']
+                unit = item['unit']
+                price = item['price']
+                store = item['store']
+                response_text += f"• {name} ({product_type}), {quantity}{unit} — {price}₽ в магазине {store.capitalize()}\n"
+                logger.debug(f"Recommendation: {name} ({product_type}), {quantity}{unit} — {price}₽ в {store}")
 
         # Send the response
         await update.message.reply_text(response_text.strip())

@@ -79,3 +79,5 @@ def olama_nlp_generate(prompt, temperature=0.7, max_tokens=400):
     except requests.exceptions.RequestException as e:
         print(f"Ошибка при запросе к Ollama API: {e}")
         return f"Ошибка при запросе к Ollama API: {e} \n\n Sorry, I encountered an error while processing your request."
+
+# todo: add func to humanize output
