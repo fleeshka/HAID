@@ -9,17 +9,8 @@ services:
     restart: unless-stopped
     networks:
       - app-network
-    mem_limit: 3g
-#    deploy:
-#      resources:
-#        reservations:
-#          devices:
-#            - driver: nvidia
-#              capabilities: [gpu]
-#    environment:
-#      - NVIDIA_VISIBLE_DEVICES=all
-#    runtime: nvidia
-    mem_reservation: 2g
+    mem_limit: 6g
+    mem_reservation: 5g
     cpus: 1.5
     environment:
       - OLLAMA_NO_CUDA=1
@@ -28,7 +19,8 @@ services:
 
     entrypoint: ["/bin/bash", "-c", "ollama serve & sleep 10 && ollama run tinyllama && tail -f /dev/null"]
     healthcheck:
-      test: curl --fail http://ollama:11434/api/tags || exit 1
+#      test: curl --fail http://ollama:11434/api/tags || exit 1
+      test: ["CMD", "curl", "--fail", "http://localhost:11434/api/tags"]
       interval: 15s
       timeout: 5s
       retries: 30

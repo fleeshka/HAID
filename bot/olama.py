@@ -1,6 +1,8 @@
 import requests
+import logging
 
 OLLAMA_API = "http://ollama:11434/api/chat"
+logger = logging.getLogger(__name__)
 
 def olama_nlp_generate(prompt, temperature=0.7, max_tokens=400):
 
@@ -40,7 +42,7 @@ def olama_nlp_generate(prompt, temperature=0.7, max_tokens=400):
 
 
     payload = {
-        "model": "llama3:instruct",  
+        "model": "tinyllama",
         "messages": [
             {"role": "user", "content": system_prompt}
         ],
@@ -51,7 +53,29 @@ def olama_nlp_generate(prompt, temperature=0.7, max_tokens=400):
 
     try:
         response = requests.post(OLLAMA_API, json=payload)
-        return response.json()["message"]["content"]
+        logger.info(f"Ollama API response status: {response.status_code}")
+        if response.status_code == 200:
+            try:
+                # Try parsing JSON and extracting the message content
+                json_response = response.json()
+                logger.info(f"Response JSON: {json_response}")
+
+                message_content = json_response.get("message", {}).get("content", "")
+                if not message_content:
+                    logger.error("No 'content' in response message.")
+                    return "Ошибка: Неверный формат ответа от системы."
+
+                logger.info(f"Extracted message content: {message_content}")
+                return message_content
+
+            except ValueError:
+                logger.error("Failed to parse JSON response.")
+                return "Ошибка: Не удалось обработать ответ от системы."
+
+        else:
+            logger.error(f"Failed to get a valid response from Ollama API: {response.status_code}")
+            return f"Ошибка: Получен неверный ответ от сервера Ollama (код {response.status_code})."
+
     except requests.exceptions.RequestException as e:
         print(f"Ошибка при запросе к Ollama API: {e}")
         return f"Ошибка при запросе к Ollama API: {e} \n\n Sorry, I encountered an error while processing your request."
