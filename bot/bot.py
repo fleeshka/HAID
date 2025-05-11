@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 # from cohere_nlp import nlp_generate
-from olama import extract_products_with_ai, recomend_recipies
+from olama import extract_products_with_ai, recomend_recipies, update_products_with_ai
 from redis_client import save_context, get_context, reset_context, set_state, get_state 
 import re
 
@@ -23,6 +23,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
     user_first_name = update.message.from_user.first_name
     user_id = update.message.from_user.id
+    reset_context(user_id)
     set_state(user_id, "start")
     await update.message.reply_text(
         f'Привет, {user_first_name}! Я — твой AI помощник по продуктам и рецептам.\n\n'
@@ -68,8 +69,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif state == "waiting_for_confirmation":
             if "да" in user_message.lower():
                 set_state(user_id, "confirmed")
-                await update.message.reply_text("Отлично! Переходим к следующему шагу...")
-                
+                await update.message.reply_text("Отлично! Переходим к следующему шагу...") 
             elif "изменить список" in user_message.lower():
                 reset_context(user_id)
                 set_state(user_id, "start")
@@ -81,7 +81,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif state == "confirmed":
             provided_recipes = recomend_recipies(get_context(user_id, "products_extracted"))
             await update.message.reply_text(provided_recipes)
-            set_state(user_id, "done")
+            keyboard = ReplyKeyboardMarkup(
+                [["Добавить новые продукты", "Ничего не добавляй"]],
+                one_time_keyboard=True,
+                resize_keyboard=True
+            )
+            set_state(user_id, "additional")
+            return
+        elif state == "additional":
+            if "новые продукты" in user_message.lower():
+                # TODO update list using ollama
+
+                new_prodcut_list = update_products_with_ai(get_context(user_id, "products_extracted"))
+            elif "не добавляй" in user_message.lower():
+                # TODO 
+                set_state(user_id, "price")
+                await update.message.reply_text("Хорошо ничего не меняем.")
+            else: 
+                await update.message.reply_text("Пожалуйста, выбери: 'Да, всё верно' или 'Хочу изменить список'.")
             return
 
         elif state == "waiting_for_input":
