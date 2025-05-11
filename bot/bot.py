@@ -3,9 +3,10 @@ import logging
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-# from cohere_nlp import nlp_generate
 from olama import olama_nlp_generate
 
+from src.api_handler import get_products
+from src.recomender import recommend
 
 # Load environment variables
 load_dotenv()
@@ -42,14 +43,87 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         '- "Хочу сделать борщ и купить молоко"'
     )
 
+product_to_category = {
+    "молоко": "молочка",
+    "сметана": "молочка",
+    "творог": "молочка",
+    "сыр": "молочка",
+    "яйца": "яйцо",
+    "фарш": "мясо",
+    "азу": "мясо",
+    "филе": "птица",
+    "печень": "птица",
+    "грудка": "птица",
+    "крылья": "птица",
+    "колбаса": "колбаса",
+    "рис": "бакалея",
+    "макароны": "бакалея",
+    "гречка": "бакалея",
+    "майонез": "соусы",
+    "соус": "соусы",
+    "кетчуп": "соусы",
+    "кофе": "кофе и чай",
+    "чай": "кофе и чай",
+    "сахар": "специи",
+    "какао": "бакалея",
+    "соль": "бакалея",
+    "шоколад": "сладкое",
+    "печенье": "сладкое",
+    "яблоки": "фрукты",
+    "бананы": "фрукты",
+    "картофель": "овощи",
+    "огурцы": "овощи",
+    "батон": "хлеб",
+    "ржаной хлеб": "хлеб",
+    "пельмени": "заморозка",
+    "овощи": "заморозка",
+    "сок": "напитки",
+    "вода": "напитки"
+}
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming messages and generate responses."""
     try:
         user_message = update.message.text.lower()
 
         # Use Cohere NLP to extract structured products
-        ai_response = olama_nlp_generate(user_message)
-        await update.message.reply_text(ai_response)
+        ai_response =await  olama_nlp_generate(user_message)
+        # await update.message.reply_text(ai_response)
+        extracted_products = []
+        for line in ai_response.splitlines():
+            if line.lower().startswith("продукты из сообщения:"):
+                extracted = line.split(":", 1)[1].strip()
+                extracted_products = [item.strip() for item in extracted.split(",") if item.strip()]
+                break
+        if not extracted_products:
+            await update.message.reply_text("Не удалось извлечь продукты из сообщения.")
+            return
+        all_products = get_products(need_unit_price=True, available=True)
+        extracted_categories = []
+        unknown_products = []
+
+        for product in extracted_products:
+            category = product_to_category.get(product)
+            if category:
+                extracted_categories.append(category)
+            else:
+                unknown_products.append(product)
+
+        if unknown_products:
+            await update.message.reply_text(f"Не удалось найти категорию для следующих товаров: {', '.join(unknown_products)}")
+
+        recommendations = recommend(all_products, extracted_categories)
+
+        response_text = f"{ai_response.strip()}\n\nПроанализировав цены в Пятерочке и Магните, я рекомендую тебе:\n"
+        for category, items in recommendations.items():
+            response_text += f"\n📦 {category}:\n"
+            for item in items:
+                response_text += f"• {item['name']} — {item['price']}₽ ({item['store']})\n"
+
+        await update.message.reply_text(response_text.strip())
+
+
 
     except Exception as e:
         logger.error(f"Error: {str(e)}")

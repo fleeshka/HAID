@@ -49,17 +49,3 @@ def recommend(products,
         recs[cat] = top_items
 
     return recs
-
-# if __name__ == "__main__":
-#     from api_handler import get_products
-#     products = get_products(need_unit_price=True)
-#
-#     result = recommend(
-#         products,
-#         categories=['молочка', 'сладкое', 'мясо'],
-#         budget_map={'мясо':230},
-#         preferred_store='магнит',
-#         k=3
-#     )
-#
-#     pprint(result, width=120)

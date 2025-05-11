@@ -9,22 +9,28 @@ services:
     restart: unless-stopped
     networks:
       - app-network
-    mem_limit: 4g 
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
+    mem_limit: 3g
+#    deploy:
+#      resources:
+#        reservations:
+#          devices:
+#            - driver: nvidia
+#              capabilities: [gpu]
+#    environment:
+#      - NVIDIA_VISIBLE_DEVICES=all
+#    runtime: nvidia
+    mem_reservation: 2g
+    cpus: 1.5
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-    runtime: nvidia
+      - OLLAMA_NO_CUDA=1
+      - OLLAMA_KEEP_ALIVE=10m
+      - OLLAMA_MAX_LOADED_MODELS=
 
-    entrypoint: ["/bin/bash", "-c", "ollama serve & sleep 5 && ollama run llama3:instruct && tail -f /dev/null"]
+    entrypoint: ["/bin/bash", "-c", "ollama serve & sleep 10 && ollama run tinyllama && tail -f /dev/null"]
     healthcheck:
       test: curl --fail http://ollama:11434/api/tags || exit 1
-      interval: 10s
-      timeout: 3s
+      interval: 15s
+      timeout: 5s
       retries: 30
 
 
@@ -34,7 +40,8 @@ services:
       dockerfile: Dockerfile
     container_name: telegram-bot
     depends_on:
-      - ollama
+      ollama:
+        condition: service_healthy
     env_file:
       - .env  
     volumes:
@@ -42,6 +49,8 @@ services:
     restart: unless-stopped
     networks:
       - app-network
+    mem_limit: 2g
+    cpus: 1
 
 networks:
   app-network:
