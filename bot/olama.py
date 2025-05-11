@@ -42,7 +42,7 @@ def olama_nlp_generate(prompt, temperature=0.7, max_tokens=400):
 
 
     payload = {
-        "model": "tinyllama",
+        "model": "llama3:instruct",
         "messages": [
             {"role": "user", "content": system_prompt}
         ],
