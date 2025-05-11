@@ -107,7 +107,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         extracted_products = []
         for line in ai_response.splitlines():
             logger.debug(f"Processing line: {line}")
-            if line.lower().startswith("продукты из сообщения:"):
+            if line.lower().startswith("Добавлено:"):
                 extracted = line.split(":", 1)[1].strip()
                 extracted_products = [item.strip() for item in extracted.split(",") if item.strip()]
                 logger.info(f"Extracted products: {extracted_products}")
