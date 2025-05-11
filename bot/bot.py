@@ -106,12 +106,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         extracted_products = []
         for line in ai_response.splitlines():
-            # TODO: add processing продукты из списка:
             logger.debug(f"Processing line: {line}")
-            if line.lower().startswith("Добавлено:"):
+            if line.lower().startswith("Продукты из сообщения:"):
                 extracted = line.split(":", 1)[1].strip()
                 extracted_products = [item.strip() for item in extracted.split(",") if item.strip()]
-                logger.info(f"Extracted products: {extracted_products}")
+                logger.info(f"Extracted products from user input: {extracted_products}")
+                continue
+            elif line.lower().startswith("Добавлено:"):
+                extracted = line.split(":", 1)[1].strip()
+                extracted_products = [item.strip() for item in extracted.split(",") if item.strip()]
+                logger.info(f"Extracted products from dishes: {extracted_products}")
                 break
 
         if not extracted_products:
@@ -138,7 +142,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if unknown_products:
             await update.message.reply_text(
-                f"Не удалось найти категорию для следующих товаров: {', '.join(unknown_products)}")
+                f"Не удалось найти категорию для следующих товаров, они будут исключены из списка: {', '.join(unknown_products)}")
             logger.info(f"Unknown products: {', '.join(unknown_products)}")
 
         # Generate recommendations
