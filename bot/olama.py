@@ -1,6 +1,8 @@
 import requests
+import logging
 
 OLLAMA_API = "http://ollama:11434/api/chat"
+logger = logging.getLogger(__name__)
 
 def extract_products_with_ai(message: str) -> str:
     prompt = (
@@ -76,21 +78,7 @@ def update_products_with_ai(current_products: str, user_message: str) -> list:
 
 
 def olama_nlp_generate(prompt, temperature=0.7, max_tokens=400):
-#     system_prompt = (
-#     "Ты — помощник по покупкам и кулинарии. Пользователь прислал сообщение со списком покупок или названием блюда.\n\n"
-#     "Твоя задача:\n"
-#     "1. Извлеки из сообщения только **съедобные продукты**. Игнорируй бытовую химию, упаковку, лекарства, корм для животных.\n"
-#     "2. Если указано блюдо (например, борщ, пицца, паста) — добавь недостающие **ингредиенты**, необходимые для его приготовления.\n"
-#     "3. Продукты пиши в нормальной форме (именительный падеж, единственное число): «лук», «помидоры», «яйцо».\n"
-#     "4. Не повторяй уже указанные продукты.\n"
-#     "5. Укажи, какие продукты добавлены и для какого блюда, коротко: «для борща — капуста, свекла».\n"
-#     "6. Формат ответа:\n"
-#     "   Продукты из сообщения: <...>\n"
-#     "   Добавлено: <...>\n"
-#     "   Причина: <...>\n\n"
-#     f"Сообщение пользователя: {prompt.strip()}"
-# )
-    
+
 
     system_prompt = (
         "Ты — интеллектуальный помощник покупателя и кулинара. Пользователь прислал сообщение, "
@@ -127,7 +115,7 @@ def olama_nlp_generate(prompt, temperature=0.7, max_tokens=400):
 
 
     payload = {
-        "model": "llama3:instruct",  
+        "model": "llama3:instruct",
         "messages": [
             {"role": "user", "content": prompt}
         ],
@@ -138,7 +126,31 @@ def olama_nlp_generate(prompt, temperature=0.7, max_tokens=400):
 
     try:
         response = requests.post(OLLAMA_API, json=payload)
-        return response.json()["message"]["content"]
+        logger.info(f"Ollama API response status: {response.status_code}")
+        if response.status_code == 200:
+            try:
+                # Try parsing JSON and extracting the message content
+                json_response = response.json()
+                logger.info(f"Response JSON: {json_response}")
+
+                message_content = json_response.get("message", {}).get("content", "")
+                if not message_content:
+                    logger.error("No 'content' in response message.")
+                    return "Ошибка: Неверный формат ответа от системы."
+
+                logger.info(f"Extracted message content: {message_content}")
+                return message_content
+
+            except ValueError:
+                logger.error("Failed to parse JSON response.")
+                return "Ошибка: Не удалось обработать ответ от системы."
+
+        else:
+            logger.error(f"Failed to get a valid response from Ollama API: {response.status_code}")
+            return f"Ошибка: Получен неверный ответ от сервера Ollama (код {response.status_code})."
+
     except requests.exceptions.RequestException as e:
         print(f"Ошибка при запросе к Ollama API: {e}")
         return f"Ошибка при запросе к Ollama API: {e} \n\n Sorry, I encountered an error while processing your request."
+
+# todo: add func to humanize output
