@@ -8,7 +8,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from src.api_handler import get_products
 from src.recomender import recommend
 from olama import extract_products_with_ai, recomend_recipies, update_products_with_ai
-from redis_client import save_context, get_context, reset_context, set_state, get_state, get_extracted_products, get_provided_recipes
+from redis_client import save_context, get_context, reset_context, set_state, get_state, get_extracted_products, get_provided_recipes, handle_final_list, get_final_list_from_redis
 import re
 
 
@@ -105,6 +105,47 @@ product_to_category = {
     "вода": "напитки"
 }
 
+async def handle_price_query(user_id, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    extracted_products = get_final_list_from_redis(user_id)
+    
+    if not extracted_products:
+        await update.message.reply_text("Кажется, твой список продуктов пустой, начнем сначала.")
+        return
+
+    all_products = get_products(need_unit_price=True, available=True)
+    extracted_categories = []
+    unknown_products = []
+
+    for product in extracted_products:
+        logger.debug(f"Matching product: {product}")
+        category = product_to_category.get(product)
+        if category:
+            extracted_categories.append(category)
+            logger.info(f"Found category for {product}: {category}")
+        else:
+            unknown_products.append(product)
+            logger.warning(f"Unknown product: {product}")
+
+    if unknown_products:
+        await update.message.reply_text(
+            f"Не удалось найти категории для: {', '.join(unknown_products)}")
+
+    if extracted_categories:
+        await update.message.reply_text(f"Вижу, ты хочешь купить: {', '.join(set(extracted_categories))}")
+
+    await update.message.reply_text("Сравниваю цены в магазинах, чтоб найти наилучшие предложения для тебя!")
+    recommendations = recommend(all_products, extracted_categories, k=2)
+
+    response_text = "\nРекомендую:\n"
+    for category, items in recommendations.items():
+        response_text += f"\n📦 {category.capitalize()}:\n"
+        for item in items:
+            response_text += f"• {item['product_name_ru']} ({item['product_type']}), {item['quantity']}{item['unit']} — {item['price']}₽ в магазине {item['store'].capitalize()}\n"
+
+    await update.message.reply_text(response_text.strip())
+    return
+
+ 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -174,45 +215,45 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ])
             await update.message.reply_text(text, reply_markup=keyboard)
             return
-          
+        
         elif state == "price":
-          extracted_products = get_context(user_id, "products_extracted")
-          if not extracted_products:
-              await update.message.reply_text("Кажется, твой список продуктов пустой, начнем сначала.")
-              return
+            extracted_products = get_context(user_id, "products_extracted")
+            if not extracted_products:
+                await update.message.reply_text("Кажется, твой список продуктов пустой, начнем сначала.")
+                return
 
-          all_products = get_products(need_unit_price=True, available=True)
-          extracted_categories = []
-          unknown_products = []
+            all_products = get_products(need_unit_price=True, available=True)
+            extracted_categories = []
+            unknown_products = []
 
-          for product in extracted_products:
-            logger.debug(f"Matching product: {product}")
-            category = product_to_category.get(product)
-            if category:
-                extracted_categories.append(category)
-                logger.info(f"Found category for {product}: {category}")
-            else:
-                unknown_products.append(product)
-                logger.warning(f"Unknown product: {product}")
+            for product in extracted_products:
+                logger.debug(f"Matching product: {product}")
+                category = product_to_category.get(product)
+                if category:
+                    extracted_categories.append(category)
+                    logger.info(f"Found category for {product}: {category}")
+                else:
+                    unknown_products.append(product)
+                    logger.warning(f"Unknown product: {product}")
 
-          if unknown_products:
-              await update.message.reply_text(
-                  f"Не удалось найти категории для: {', '.join(unknown_products)}")
+            if unknown_products:
+                await update.message.reply_text(
+                    f"Не удалось найти категории для: {', '.join(unknown_products)}")
 
-          if extracted_categories:
-              await update.message.reply_text(f"Вижу, ты хочешь купить: {', '.join(set(extracted_categories))}")
+            if extracted_categories:
+                await update.message.reply_text(f"Вижу, ты хочешь купить: {', '.join(set(extracted_categories))}")
 
-          await update.message.reply_text("Сравниваю цены в магазинах, чтоб найти наилучшие предложения для тебя!")
-          recommendations = recommend(all_products, extracted_categories, k=2)
+            await update.message.reply_text("Сравниваю цены в магазинах, чтоб найти наилучшие предложения для тебя!")
+            recommendations = recommend(all_products, extracted_categories, k=2)
 
-          response_text = "\nРекомендую:\n"
-          for category, items in recommendations.items():
-              response_text += f"\n📦 {category.capitalize()}:\n"
-              for item in items:
-                  response_text += f"• {item['product_name_ru']} ({item['product_type']}), {item['quantity']}{item['unit']} — {item['price']}₽ в магазине {item['store'].capitalize()}\n"
+            response_text = "\nРекомендую:\n"
+            for category, items in recommendations.items():
+                response_text += f"\n📦 {category.capitalize()}:\n"
+                for item in items:
+                    response_text += f"• {item['product_name_ru']} ({item['product_type']}), {item['quantity']}{item['unit']} — {item['price']}₽ в магазине {item['store'].capitalize()}\n"
 
-          await update.message.reply_text(response_text.strip())
-          return
+            await update.message.reply_text(response_text.strip())
+            return
 
         else:
             reset_context(user_id)
@@ -224,6 +265,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Ошибка: {str(e)}")
         await update.message.reply_text("❌ Ошибка при обработке сообщения. Попробуй ещё раз.")
 
+           
+
 
 async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -233,10 +276,10 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     if query.data == "confirm_extracted_list":
         set_state(user_id, "confirmed")
         products_extracted = get_extracted_products(user_id)
+        await send_image("bot/img/img1.png", update, context)
         
         await query.edit_message_text(f"Вот твой готовый список:\n {products_extracted}.")
 
-        await send_image("bot/img/img1.png", update, context)  # Отправляем изображение
 
         provided_recipes = recomend_recipies(products_extracted)
         save_context(user_id, "provided_recipes", provided_recipes)
@@ -255,26 +298,81 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         await query.edit_message_text("Хорошо, давай попробуем снова. Отправь список продуктов заново.")
 
     elif query.data == "add_new":
-        set_state(user_id, "start")
         await send_image("bot/img/img2.png", update, context) 
+
 
         products_extracted = get_extracted_products(user_id)
         recipes = get_context(user_id).get("provided_recipes")
 
         fresh_list = update_products_with_ai(products_extracted, recipes)
 
-        result = "\n• ".join(products_extracted.split(", ") + fresh_list.split(", "))
-        formatted_result = "• " + result 
+        products_extracted_list = products_extracted.split(", ")
+        fresh_list_list = fresh_list.split(", ")
 
-        await query.edit_message_text(f"Вот твой готовый список:\n{formatted_result}")
+        combined_list = products_extracted_list + fresh_list_list
+
+        handle_final_list(user_id, combined_list)
+        formatted_result = "\n• ".join(combined_list)
+        set_state(user_id, "start")
+
+        await query.edit_message_text(f"Вот твой готовый список:\n• {formatted_result}")
+
+        extracted_products = combined_list
+        logger.info(f"{extracted_products}")
+        if not extracted_products:
+            await query.message.reply_text("Кажется, твой список продуктов пустой, начнем сначала.")
+            return
+
+        all_products = get_products(need_unit_price=True, available=True)
+        extracted_categories = []
+        unknown_products = []
+
+        for product in extracted_products:
+            logger.debug(f"Matching product: {product}")
+            category = product_to_category.get(product)
+            if category:
+                extracted_categories.append(category)
+                logger.info(f"Found category for {product}: {category}")
+            else:
+                unknown_products.append(product)
+                logger.warning(f"Unknown product: {product}")
+
+        # if unknown_products:
+        #     await query.message.reply_text(
+        #         f"Не удалось найти категории для: {', '.join(unknown_products)}")
+
+        # if extracted_categories:
+        #     await query.message.reply_text(f"Вижу, ты хочешь купить: {', '.join(set(extracted_categories))}")
+
+        await query.message.reply_text("Сравниваю цены в магазинах, чтоб найти наилучшие предложения для тебя!")
+        recommendations = recommend(all_products, extracted_categories, k=2)
+
+        response_text = "\nВсё, что мне удалось найти:\n"
+        for category, items in recommendations.items():
+            response_text += f"\n📦 {category.capitalize()}:\n"
+            for item in items:
+                response_text += f"• {item['product_name_ru']} ({item['product_type']}), {item['quantity']}{item['unit']} — {item['price']}₽ в магазине {item['store'].capitalize()}\n"
+
+        await query.message.reply_text(response_text.strip())
+
+        reset_context(user_id)
+        
+        return
 
     elif query.data == "no_add":
-        set_state(user_id, "start")
         await send_image("bot/img/img2.png", update, context) 
+        set_state(user_id, "start")
 
         products_extracted = get_extracted_products(user_id)
-        result = "\n• ".join(products_extracted.split(", "))
-        await query.edit_message_text(f"Вот твой готовый список:\n {result}.")
+        products_extracted_list = products_extracted.split(", ")
+        handle_final_list(user_id, products_extracted_list)
+        formatted_result = "\n• ".join(products_extracted_list)
+
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Где купить по лучшей цене?", callback_data="get_prices")],
+            [InlineKeyboardButton("Нет, не нужно", callback_data="no_add")]
+        ])
+        await query.edit_message_text(f"Вот твой готовый список:\n• {formatted_result}", reply_markup=keyboard)
 
 
 def main():

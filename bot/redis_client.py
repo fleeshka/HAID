@@ -32,6 +32,20 @@ def get_extracted_products(user_id: int) -> str:
         return ", ".join(products)
     return str(products)
 
+async def handle_final_list(user_id, combined_list):
+    combined_list_str = ", ".join(combined_list)
+
+    save_context(user_id, "final_product_list", combined_list_str)
+
+def get_final_list_from_redis(user_id):
+    context = get_context(user_id)
+    combined_list_str = context.get("final_product_list") 
+    
+    if combined_list_str:
+        combined_list = combined_list_str.split(", ")
+        return combined_list
+    return []
+
 def get_provided_recipes(user_id: int) -> str:
     return get_context(user_id).get("provided_recipes", "Рецепты не найдены.")
 
