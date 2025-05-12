@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 # from cohere_nlp import nlp_generate
 from olama import extract_products_with_ai, recomend_recipies, update_products_with_ai
-from redis_client import save_context, get_context, reset_context, set_state, get_state, get_extracted_products
+from redis_client import save_context, get_context, reset_context, set_state, get_state, get_extracted_products, get_provided_recipes
 import re
 
 
@@ -19,8 +19,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+async def send_image(path, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    image_path = path
+    with open(image_path, "rb") as image:
+        await update.message.reply_photo(photo=image)
+
+        
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
+    image_path = "bot/img/img3.png"  
+    with open(image_path, "rb") as image:
+        await update.message.reply_photo(photo=image)
     user_first_name = update.message.from_user.first_name
     user_id = update.message.from_user.id
     reset_context(user_id)
@@ -44,6 +54,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         '- "Что приготовить из картошки?"\n'
         '- "Хочу сделать борщ и купить молоко"'
     )
+
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -96,11 +107,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         elif state == "additional":
             if "новые продукты" in user_message.lower():
-                # TODO update list using ollama
-
                 new_prodcut_list = update_products_with_ai(get_context(user_id, "products_extracted"))
             elif "не добавляй" in user_message.lower():
-                # TODO 
                 set_state(user_id, "price")
                 await update.message.reply_text("Хорошо ничего не меняем.")
             else: 
@@ -142,10 +150,11 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     if query.data == "confirm_extracted_list":
         set_state(user_id, "confirmed")
         products_extracted = get_extracted_products(user_id)
-        
+        recepies = get_provided_recipes(user_id)
         await query.edit_message_text(f"Вот твой готовый список:\n {products_extracted}.")
 
         provided_recipes = recomend_recipies(products_extracted)
+        save_context(user_id, "provided_recipes", provided_recipes)
         await query.message.reply_text(provided_recipes)
 
         keyboard = InlineKeyboardMarkup([
@@ -162,9 +171,14 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
     elif query.data == "add_new":
         set_state(user_id, "additional")
-        
-        await query.edit_message_reply_markup(reply_markup=None)
-        await query.edit_message_text("Отправь, что хочешь добавить")
+
+        products_extracted = get_extracted_products(user_id)
+        recipes = get_context(user_id).get("provided_recipes")
+
+        fresh_list = update_products_with_ai(products_extracted, recipes)
+        result = "\n".join(products_extracted.split(", ") + fresh_list.split(", "))
+
+        await query.edit_message_text(f"Вот твой готовый список:\n {result}.")
 
     elif query.data == "no_add":
         set_state(user_id, "price")

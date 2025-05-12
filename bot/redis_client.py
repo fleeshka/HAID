@@ -32,7 +32,8 @@ def get_extracted_products(user_id: int) -> str:
         return ", ".join(products)
     return str(products)
 
-
+def get_provided_recipes(user_id: int) -> str:
+    return get_context(user_id).get("provided_recipes", "Рецепты не найдены.")
 
 def reset_context(user_id):
     user_key = _get_user_key(user_id)
