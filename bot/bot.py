@@ -8,7 +8,6 @@ from olama import extract_products_with_ai, recomend_recipies, update_products_w
 from redis_client import save_context, get_context, reset_context, set_state, get_state, get_extracted_products, get_provided_recipes
 import re
 
-
 # Load environment variables
 load_dotenv()
 
@@ -19,26 +18,32 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+async def send_image(image_path: str, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        if update.message:
+            with open(image_path, "rb") as image:
+                await update.message.reply_photo(photo=image)
+        elif update.callback_query:
+            with open(image_path, "rb") as image:
+                await update.callback_query.message.reply_photo(photo=image)
+    except Exception as e:
+        logger.error(f"Ошибка при отправке изображения: {str(e)}")
 
-async def send_image(path, update: Update, context: ContextTypes.DEFAULT_TYPE):
-    image_path = path
-    with open(image_path, "rb") as image:
-        await update.message.reply_photo(photo=image)
-
-        
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
-    image_path = "bot/img/img3.png"  
-    with open(image_path, "rb") as image:
-        await update.message.reply_photo(photo=image)
     user_first_name = update.message.from_user.first_name
     user_id = update.message.from_user.id
     reset_context(user_id)
     set_state(user_id, "start")
+    
+    # Отправляем картинку
+    await send_image("bot/img/img3.png", update, context)
+
+    # Отправляем текстовое сообщение
     await update.message.reply_text(
         f'Привет, {user_first_name}! Я — твой AI помощник по продуктам и рецептам.\n\n'
         'Ты можешь спросить:\n'
-        '- Где дешевле купить проудкты\n'
+        '- Где дешевле купить продукты\n'
         '- Что приготовить из твоих ингредиентов\n'
         '- Или просто отправить список: "Хочу сделать блины, купить молоко и хлеб"'
     )
@@ -63,10 +68,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         state = get_state(user_id)
 
         if state == "start":
-            # save first origing message 
             save_context(user_id, "from_user", user_message)
             extracted_products = extract_products_with_ai(user_message)
-            # save extracted products
             save_context(user_id, "products_extracted", extracted_products)
             set_state(user_id, "waiting_for_confirmation")
 
@@ -81,8 +84,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         elif state == "confirmed":
             provided_recipes = recomend_recipies(get_context(user_id, "products_extracted"))
-    
-
             await update.message.reply_text(provided_recipes)
 
             keyboard = InlineKeyboardMarkup([
@@ -116,7 +117,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         elif state == "waiting_for_input":
-            # update product list 
             save_context(user_id, "from_user", user_message)
             extracted_products = extract_products_with_ai(user_message)
             save_context(user_id, "products_extracted", extracted_products)
@@ -131,7 +131,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         else:
-            # unknown state 
             reset_context(user_id)
             set_state(user_id, "start")
             await update.message.reply_text("Что-то пошло не так. Давай начнём сначала. Напиши список продуктов.")
@@ -150,8 +149,10 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     if query.data == "confirm_extracted_list":
         set_state(user_id, "confirmed")
         products_extracted = get_extracted_products(user_id)
-        recepies = get_provided_recipes(user_id)
+        
         await query.edit_message_text(f"Вот твой готовый список:\n {products_extracted}.")
+
+        await send_image("bot/img/img1.png", update, context)  # Отправляем изображение
 
         provided_recipes = recomend_recipies(products_extracted)
         save_context(user_id, "provided_recipes", provided_recipes)
@@ -161,7 +162,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             [InlineKeyboardButton("Добавить новые продукты", callback_data="add_new")],
             [InlineKeyboardButton("Ничего не добавляй", callback_data="no_add")]
         ])
-        await query.message.reply_text("Хочешь добавим недостающие продкуты в корзину?", reply_markup=keyboard)
+        await query.message.reply_text("Хочешь добавим недостающие продукты в корзину?", reply_markup=keyboard)
 
     elif query.data == "regect_extracted_list":
         reset_context(user_id)
@@ -171,6 +172,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
     elif query.data == "add_new":
         set_state(user_id, "additional")
+        await send_image("bot/img/img2.png", update, context) 
 
         products_extracted = get_extracted_products(user_id)
         recipes = get_context(user_id).get("provided_recipes")
@@ -178,13 +180,12 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         fresh_list = update_products_with_ai(products_extracted, recipes)
         result = "\n".join(products_extracted.split(", ") + fresh_list.split(", "))
 
+
         await query.edit_message_text(f"Вот твой готовый список:\n {result}.")
 
     elif query.data == "no_add":
         set_state(user_id, "price")
-        await query.edit_message_text("Хорошо,как скажешь, ничего не добавляем")
-
-
+        await query.edit_message_text("Хорошо, как скажешь, ничего не добавляем")
 
 def main():
     """Start the bot."""
@@ -196,17 +197,10 @@ def main():
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
-
-    application.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND,
-        handle_message
-    ))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(CallbackQueryHandler(handle_callback_query))
-
 
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
-
-    
 if __name__ == '__main__':
     main()
