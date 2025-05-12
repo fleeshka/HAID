@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 # from cohere_nlp import nlp_generate
 from olama import extract_products_with_ai, recomend_recipies, update_products_with_ai
-from redis_client import save_context, get_context, reset_context, set_state, get_state 
+from redis_client import save_context, get_context, reset_context, set_state, get_state, get_extracted_products
 import re
 
 
@@ -70,6 +70,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         elif state == "confirmed":
             provided_recipes = recomend_recipies(get_context(user_id, "products_extracted"))
+    
+
             await update.message.reply_text(provided_recipes)
 
             keyboard = InlineKeyboardMarkup([
@@ -77,7 +79,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("Ничего не добавляй", callback_data="no_add")]
             ])
             await update.message.reply_text("Хочешь что-то добавить?", reply_markup=keyboard)
-            set_state(user_id, "additional")
+
             return
         
         elif state == "waiting_for_confirmation":
@@ -139,8 +141,18 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
     if query.data == "confirm_extracted_list":
         set_state(user_id, "confirmed")
-        await query.edit_message_reply_markup(reply_markup=None)
-        await query.edit_message_text("Отлично! Переходим к следующему шагу...")
+        products_extracted = get_extracted_products(user_id)
+        
+        await query.edit_message_text(f"Вот твой готовый список:\n {products_extracted}.")
+
+        provided_recipes = recomend_recipies(products_extracted)
+        await query.message.reply_text(provided_recipes)
+
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Добавить новые продукты", callback_data="add_new")],
+            [InlineKeyboardButton("Ничего не добавляй", callback_data="no_add")]
+        ])
+        await query.message.reply_text("Хочешь добавим недостающие продкуты в корзину?", reply_markup=keyboard)
 
     elif query.data == "regect_extracted_list":
         reset_context(user_id)
@@ -149,7 +161,8 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         await query.edit_message_text("Хорошо, давай попробуем снова. Отправь список продуктов заново.")
 
     elif query.data == "add_new":
-        set_state(user_id, "waiting_for_input")
+        set_state(user_id, "additional")
+        
         await query.edit_message_reply_markup(reply_markup=None)
         await query.edit_message_text("Отправь, что хочешь добавить")
 

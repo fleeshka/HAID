@@ -23,6 +23,16 @@ def get_context(user_id):
             parsed_data[key] = val
     return parsed_data
 
+def get_extracted_products(user_id: int) -> str:
+    context = get_context(user_id)
+    products = context.get("products_extracted")
+    if not products:
+        return "Продукты не найдены."
+    if isinstance(products, list):
+        return ", ".join(products)
+    return str(products)
+
+
 
 def reset_context(user_id):
     user_key = _get_user_key(user_id)
