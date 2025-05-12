@@ -113,7 +113,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 set_state(user_id, "price")
                 await update.message.reply_text("Хорошо ничего не меняем.")
             else: 
-                await update.message.reply_text("Пожалуйста, выбери: 'Да, всё верно' или 'Хочу изменить список'.")
+                await update.message.reply_text("Я не понял, произошла ошибка, попробуй снова")
             return
 
         elif state == "waiting_for_input":
@@ -171,21 +171,27 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         await query.edit_message_text("Хорошо, давай попробуем снова. Отправь список продуктов заново.")
 
     elif query.data == "add_new":
-        set_state(user_id, "additional")
+        set_state(user_id, "start")
         await send_image("bot/img/img2.png", update, context) 
 
         products_extracted = get_extracted_products(user_id)
         recipes = get_context(user_id).get("provided_recipes")
 
         fresh_list = update_products_with_ai(products_extracted, recipes)
-        result = "\n".join(products_extracted.split(", ") + fresh_list.split(", "))
 
+        result = "\n• ".join(products_extracted.split(", ") + fresh_list.split(", "))
+        formatted_result = "• " + result 
 
-        await query.edit_message_text(f"Вот твой готовый список:\n {result}.")
+        await query.edit_message_text(f"Вот твой готовый список:\n{formatted_result}")
 
     elif query.data == "no_add":
-        set_state(user_id, "price")
-        await query.edit_message_text("Хорошо, как скажешь, ничего не добавляем")
+        set_state(user_id, "start")
+        await send_image("bot/img/img2.png", update, context) 
+
+        products_extracted = get_extracted_products(user_id)
+        result = "\n• ".join(products_extracted.split(", "))
+        await query.edit_message_text(f"Вот твой готовый список:\n {result}.")
+
 
 def main():
     """Start the bot."""
