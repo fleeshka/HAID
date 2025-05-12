@@ -1,6 +1,8 @@
 # List2Grocery - HAID Project
 
-A Telegram bot with machine learning capabilities, powered by Ollama and Redis for data management.
+This project presents a Telegram bot designed to make grocery shopping easier and more efficient. By understanding natural language input from users, the bot helps create smart shopping lists tailored to individual needs. It uses advanced natural language processing to identify relevant products and employs a machine learning algorithm to recommend the best options based on price and store availability.
+
+Our approach is grounded in human-centered AI interaction principles, ensuring that users remain in control, receive clear explanations, and enjoy a simple, intuitive experience. The backend leverages Ollama for AI model serving and Redis for fast and reliable data management.
 
 ## Prerequisites
 
@@ -73,6 +75,44 @@ The command will start three services:
     ```bash
     docker-compose logs -f
     ```
+
+## User Guide
+1. Find the bot in Telegram:
+    Search for the bot by its username, e.g., @YourBotUsername (replace with the actual bot username).
+
+2. Start interaction:
+    Send /start to initiate the conversation. The bot will greet you and provide instructions.
+
+3. Create your shopping list:
+    Type your shopping list in natural language. For example:
+    “I want to buy milk, eggs, and bread” or “Ingredients for pancakes”.
+
+4. Bot processes your input:
+    The bot uses NLP to extract relevant product names and may suggest additional ingredients if you mention dishes.
+
+5. Receive recommendations:
+    The bot will recommend products with prices and stores, optimized using the KNN algorithm.
+
+6. Edit or confirm list:
+    You can add or remove items via buttons or text commands before finalizing your list.
+
+Use commands:
+```
+        /help - get help on how to use the bot
+
+        /reset - clear the current list and start over
+```
+## Human-AI Interaction Design Principles
+
+This project incorporates key human-centered AI interaction principles to enhance user experience and trust:
+
+-  Visibility: The bot provides clear feedback at each step, showing system status and next actions.
+-  User Control: Users can easily edit, add, or remove items from their shopping list, maintaining full control.
+-  Transparency: Recommendations are explained and justified by showing prices and stores, helping users understand the AI’s decisions.
+-  Simplicity: The conversational interface uses natural language and intuitive buttons to reduce cognitive load.
+-  Assistive AI: The bot acts as an assistant, supporting rather than replacing user decision-making.
+
+These principles are inspired by established guidelines in human-AI interaction research (e.g., Amershi et al., Miller, Shneiderman) to ensure the bot is both effective and user-friendly.
 
 ## Project Structure
 
