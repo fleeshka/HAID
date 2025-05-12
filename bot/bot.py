@@ -3,11 +3,13 @@ import logging
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
-# from cohere_nlp import nlp_generate
-from olama import extract_products_with_ai, recomend_recipies, update_products_with_ai
+from olama import extract_products_with_ai, recomend_recipies, update_products_with_ai,olama_nlp_generate
 from redis_client import save_context, get_context, reset_context, set_state, get_state 
 import re
-
+import sys
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from src.api_handler import get_products
+from src.recomender import recommend
 
 # Load environment variables
 load_dotenv()
@@ -21,12 +23,16 @@ logger = logging.getLogger(__name__)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
+    if update.message is None or update.message.text is None:
+        return
+
     user_first_name = update.message.from_user.first_name
     user_id = update.message.from_user.id
     reset_context(user_id)
     set_state(user_id, "start")
     await update.message.reply_text(
-        f'Привет, {user_first_name}! Я — твой AI помощник по продуктам и рецептам.\n\n'
+        f'👋 Привет, {user_first_name}! Я — твой AI помощник по продуктам и рецептам.\n\n'
+
         'Ты можешь спросить:\n'
         '- Где дешевле купить проудкты\n'
         '- Что приготовить из твоих ингредиентов\n'
@@ -35,6 +41,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /help is issued."""
+    if update.message is None or update.message.text is None:
+        return
+
     await update.message.reply_text(
         '📌 Команды:\n'
         '/start — запуск бота\n'
@@ -44,6 +53,45 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         '- "Что приготовить из картошки?"\n'
         '- "Хочу сделать борщ и купить молоко"'
     )
+
+product_to_category = {
+    "молоко": "молочка",
+    "сметана": "молочка",
+    "творог": "молочка",
+    "сыр": "молочка",
+    "яйца": "яйцо",
+    "фарш": "мясо",
+    "азу": "мясо",
+    "филе": "птица",
+    "печень": "птица",
+    "грудка": "птица",
+    "крылья": "птица",
+    "колбаса": "колбаса",
+    "рис": "бакалея",
+    "макароны": "бакалея",
+    "гречка": "бакалея",
+    "майонез": "соусы",
+    "соус": "соусы",
+    "кетчуп": "соусы",
+    "кофе": "кофе и чай",
+    "чай": "кофе и чай",
+    "сахар": "специи",
+    "какао": "бакалея",
+    "соль": "бакалея",
+    "шоколад": "сладкое",
+    "печенье": "сладкое",
+    "яблоки": "фрукты",
+    "бананы": "фрукты",
+    "картофель": "овощи",
+    "огурцы": "овощи",
+    "батон": "хлеб",
+    "ржаной хлеб": "хлеб",
+    "пельмени": "заморозка",
+    "овощи": "заморозка",
+    "сок": "напитки",
+    "вода": "напитки"
+}
+
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -119,6 +167,45 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ])
             await update.message.reply_text(text, reply_markup=keyboard)
             return
+          
+        elif state == "price":
+          extracted_products = get_context(user_id, "products_extracted")
+          if not extracted_products:
+              await update.message.reply_text("Кажется, твой список продуктов пустой, начнем сначала.")
+              return
+
+          all_products = get_products(need_unit_price=True, available=True)
+          extracted_categories = []
+          unknown_products = []
+
+          for product in extracted_products:
+            logger.debug(f"Matching product: {product}")
+            category = product_to_category.get(product)
+            if category:
+                extracted_categories.append(category)
+                logger.info(f"Found category for {product}: {category}")
+            else:
+                unknown_products.append(product)
+                logger.warning(f"Unknown product: {product}")
+
+          if unknown_products:
+              await update.message.reply_text(
+                  f"Не удалось найти категории для: {', '.join(unknown_products)}")
+
+          if extracted_categories:
+              await update.message.reply_text(f"Вижу, ты хочешь купить: {', '.join(set(extracted_categories))}")
+
+          await update.message.reply_text("Сравниваю цены в магазинах, чтоб найти наилучшие предложения для тебя!")
+          recommendations = recommend(all_products, extracted_categories, k=2)
+
+          response_text = "\nРекомендую:\n"
+          for category, items in recommendations.items():
+              response_text += f"\n📦 {category.capitalize()}:\n"
+              for item in items:
+                  response_text += f"• {item['product_name_ru']} ({item['product_type']}), {item['quantity']}{item['unit']} — {item['price']}₽ в магазине {item['store'].capitalize()}\n"
+
+          await update.message.reply_text(response_text.strip())
+          return
 
         else:
             # unknown state 
