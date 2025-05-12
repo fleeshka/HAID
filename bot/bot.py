@@ -10,6 +10,7 @@ from src.recomender import recommend
 from olama import extract_products_with_ai, recomend_recipies, update_products_with_ai
 from redis_client import save_context, get_context, reset_context, set_state, get_state, get_extracted_products, get_provided_recipes, handle_final_list, get_final_list_from_redis
 import re
+import asyncio
 
 
 load_dotenv()
@@ -44,12 +45,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_image("bot/img/img3.png", update, context)
 
     await update.message.reply_text(
-        f'👋 Привет, {user_first_name}! Я — твой AI помощник по продуктам и рецептам.\n\n'
+        f'👋 Привет, {user_first_name}! Я - твой AI помощник по продуктам и рецептам.\n\n'
 
-        'Ты можешь спросить:\n'
-        '- Где дешевле купить продукты\n'
-        '- Что приготовить из твоих ингредиентов\n'
-        '- Или просто отправить список: "Хочу сделать блины, купить молоко и хлеб"'
+        'Вот что я умею:\n'
+        '- 📦 Отправь список продуктов (например: `молоко, яйца, хлеб`) - я подскажу, где их купить дешевле.\n'
+        '- 🍳 Напиши блюдо (например: `блины`, `плов`) - я подберу нужные ингредиенты и добавлю недостающие в список\n'
+        '- 🍲 Хочешь что-то новенькое? Я предложу блюдо на основе того, что ты собираешься купить\n'
+        '- 📝 Просто скажи: `Хочу приготовить борщ, купить картошку и мясо` - и я всё организую\n\n'
+
+        'Общайся со мной как с другом - я всегда готов помочь! 😊\n'
+        
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -58,14 +63,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        '📌 Команды:\n'
-        '/start — запуск бота\n'
-        '/help — помощь\n\n'
-        'Примеры запросов:\n'
-        '- "Где купить сыр?"\n'
-        '- "Что приготовить из картошки?"\n'
-        '- "Хочу сделать борщ и купить молоко"'
-    )
+    '📌 Вот чем я могу помочь:\n'
+    '/start — начать заново\n'
+    '/help — показать подсказки\n\n'
+    '✨ Примеры, как со мной говорить:\n'
+    '- "молоко, яйца, хлеб" — подскажу, где дешевле\n'
+    '- "хочу приготовить плов" — соберу список нужных продуктов\n'
+    '- "хочу сделать борщ, купить картошку и мясо" — добавлю недостающее и всё организую\n\n'
+    'Просто напиши как другу — я на связи!'
+)
 
 product_to_category = {
     "молоко": "молочка",
@@ -138,7 +144,7 @@ async def handle_price_query(user_id, update: Update, context: ContextTypes.DEFA
 
     response_text = "\nРекомендую:\n"
     for category, items in recommendations.items():
-        response_text += f"\n📦 {category.capitalize()}:\n"
+        response_text += f"\n📦 В категории \"{category.capitalize()}\":\n"
         for item in items:
             response_text += f"• {item['product_name_ru']} ({item['product_type']}), {item['quantity']}{item['unit']} — {item['price']}₽ в магазине {item['store'].capitalize()}\n"
 
@@ -173,8 +179,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(provided_recipes)
 
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("Добавить новые продукты", callback_data="add_new")],
-                [InlineKeyboardButton("Ничего не добавляй", callback_data="no_add")]
+                [InlineKeyboardButton("Да, давай", callback_data="add_new")],
+                [InlineKeyboardButton("Нет, спасибо", callback_data="no_add")]
             ])
             await update.message.reply_text("Хочешь что-то добавить?", reply_markup=keyboard)
 
@@ -278,7 +284,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         products_extracted = get_extracted_products(user_id)
         await send_image("bot/img/img1.png", update, context)
         
-        await query.edit_message_text(f"Вот твой готовый список:\n {products_extracted}.")
+        await query.edit_message_text(f"✍️ Список продкутов:\n {products_extracted}.")
 
 
         provided_recipes = recomend_recipies(products_extracted)
@@ -286,8 +292,8 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         await query.message.reply_text(provided_recipes)
 
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Добавить новые продукты", callback_data="add_new")],
-            [InlineKeyboardButton("Ничего не добавляй", callback_data="no_add")]
+            [InlineKeyboardButton("Да, давай ", callback_data="add_new")],
+            [InlineKeyboardButton("Нет, спасибо", callback_data="no_add")]
         ])
         await query.message.reply_text("Хочешь добавим недостающие продукты в корзину?", reply_markup=keyboard)
 
@@ -298,8 +304,8 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         await query.edit_message_text("Хорошо, давай попробуем снова. Отправь список продуктов заново.")
 
     elif query.data == "add_new":
+        await query.edit_message_reply_markup(reply_markup=None)
         await send_image("bot/img/img2.png", update, context) 
-
 
         products_extracted = get_extracted_products(user_id)
         recipes = get_context(user_id).get("provided_recipes")
@@ -315,7 +321,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         formatted_result = "\n• ".join(combined_list)
         set_state(user_id, "start")
 
-        await query.edit_message_text(f"Вот твой готовый список:\n• {formatted_result}")
+        await query.edit_message_text(f"Держи полный список продуктов:\n• {formatted_result}")
 
         extracted_products = combined_list
         logger.info(f"{extracted_products}")
@@ -348,19 +354,28 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         recommendations = recommend(all_products, extracted_categories, k=2)
 
         response_text = "\nВсё, что мне удалось найти:\n"
+        count = 0 
         for category, items in recommendations.items():
             response_text += f"\n📦 {category.capitalize()}:\n"
             for item in items:
                 response_text += f"• {item['product_name_ru']} ({item['product_type']}), {item['quantity']}{item['unit']} — {item['price']}₽ в магазине {item['store'].capitalize()}\n"
+                count = count + 1
+        if count != 0:
+            await query.message.reply_text(response_text.strip())
+        else:
+            await query.message.reply_text("К сожалению, у меня не нашлось данных по этим продуктам")
 
-        await query.message.reply_text(response_text.strip())
-
+        text = "Если вдруг захочется поделиться, помогли ли мои советы — про цены в магазинах, подбор продуктов под блюдо или наоборот — мне будет приятно услышать! Просто напиши `@uchaikouskaya` или `@ksksksksksksksushka`, они всё передадут 😊"
+        await asyncio.sleep(5)
+        await query.message.reply_text(text)
         reset_context(user_id)
-        
+        set_state(user_id, "start")
         return
 
     elif query.data == "no_add":
+        await query.edit_message_reply_markup(reply_markup=None)
         await send_image("bot/img/img2.png", update, context) 
+        
         set_state(user_id, "start")
 
         products_extracted = get_extracted_products(user_id)
@@ -368,11 +383,56 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         handle_final_list(user_id, products_extracted_list)
         formatted_result = "\n• ".join(products_extracted_list)
 
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Где купить по лучшей цене?", callback_data="get_prices")],
-            [InlineKeyboardButton("Нет, не нужно", callback_data="no_add")]
-        ])
-        await query.edit_message_text(f"Вот твой готовый список:\n• {formatted_result}", reply_markup=keyboard)
+        await query.edit_message_text(f"✍️ Вот полный список:\n• {formatted_result}")
+
+        extracted_products = products_extracted
+        logger.info(f"{extracted_products}")
+        if not extracted_products:
+            await query.message.reply_text("Кажется, твой список продуктов пустой, начнем сначала.")
+            return
+
+        all_products = get_products(need_unit_price=True, available=True)
+        extracted_categories = []
+        unknown_products = []
+
+        for product in extracted_products:
+            logger.debug(f"Matching product: {product}")
+            category = product_to_category.get(product)
+            if category:
+                extracted_categories.append(category)
+                logger.info(f"Found category for {product}: {category}")
+            else:
+                unknown_products.append(product)
+                logger.warning(f"Unknown product: {product}")
+
+        # if unknown_products:
+        #     await query.message.reply_text(
+        #         f"Не удалось найти категории для: {', '.join(unknown_products)}")
+
+        # if extracted_categories:
+        #     await query.message.reply_text(f"Вижу, ты хочешь купить: {', '.join(set(extracted_categories))}")
+
+        await query.message.reply_text("Сравниваю цены в магазинах, чтоб найти наилучшие предложения для тебя!")
+        recommendations = recommend(all_products, extracted_categories, k=2)
+
+        response_text = "\nВсё, что мне удалось найти:\n"
+        count = 0 
+        for category, items in recommendations.items():
+            response_text += f"\n📦 {category.capitalize()}:\n"
+            for item in items:
+                response_text += f"• {item['product_name_ru']} ({item['product_type']}), {item['quantity']}{item['unit']} — {item['price']}₽ в магазине {item['store'].capitalize()}\n"
+                count = count + 1
+        if count != 0:
+            await query.message.reply_text(response_text.strip())
+        else:
+            await query.message.reply_text("К сожалению, у меня не нашлось данных по этим продуктам")
+
+        text = "Если вдруг захочется поделиться, помогли ли мои советы — про цены в магазинах, подбор продуктов под блюдо или наоборот — мне будет приятно услышать! Просто напиши `@uchaikouskaya` или `@ksksksksksksksushka`, они всё передадут 😊"
+        await asyncio.sleep(5)
+        await query.message.reply_text(text)
+        reset_context(user_id)
+        set_state(user_id, "start")
+        return
 
 
 def main():
