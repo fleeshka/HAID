@@ -1,15 +1,26 @@
 services:
-  ollama:
-    image: ollama/ollama:latest 
-    container_name: ollama
+  redis:
+    image: redis:latest
+    container_name: redis
     ports:
-      - "11434:11434"  
+      - "6379:6379"
+    networks:
+      - app-network
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    depends_on:
+      - redis
+    ports:
+      - "11434:11434"
     volumes:
       - ollama-data:/root/.ollama
     restart: unless-stopped
     networks:
       - app-network
-    mem_limit: 4g 
+
+    mem_limit: 2g 
     deploy:
       resources:
         reservations:
@@ -19,6 +30,7 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
     runtime: nvidia
+
 
     entrypoint: ["/bin/bash", "-c", "ollama serve & sleep 5 && ollama run llama3:instruct && tail -f /dev/null"]
     healthcheck:
@@ -30,15 +42,17 @@ services:
 
   bot:
     build:
-      context: . 
+      context: .
       dockerfile: Dockerfile
     container_name: telegram-bot
     depends_on:
       - ollama
     env_file:
-      - .env  
+      - .env
     volumes:
       - ./data:/app/data 
+      - ./src:/app/src 
+
     restart: unless-stopped
     networks:
       - app-network
@@ -48,4 +62,4 @@ networks:
     driver: bridge
 
 volumes:
-  ollama-data: 
+  ollama-data:

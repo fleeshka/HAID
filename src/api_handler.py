@@ -1,6 +1,8 @@
 import pandas as pd
 
-df = pd.read_csv("data/products.csv")
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+df = pd.read_csv(os.path.join(current_dir, 'data/products.csv'))
 
 '''converts default price into suitable for comparison format'''
 def calculate_unit_price(quantity, unit, price):

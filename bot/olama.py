@@ -1,23 +1,84 @@
 import requests
+import logging
 
 OLLAMA_API = "http://ollama:11434/api/chat"
+logger = logging.getLogger(__name__)
+
+def extract_products_with_ai(message: str) -> str:
+    prompt = (
+        "Ты — интеллектуальный помощник покупателя. Пользователь прислал сообщение, "
+        "в котором могут быть:\n"
+        "- список продуктов,\n"
+        "- описание блюда или просто название блюда, которое он хочет приготовить.\n"
+
+        "Твоя задача:\n"
+        "1. Извлеки **только съедобные продукты** (еда, напитки, специи, ингредиенты). Исключи всё несъедобное: бытовую химию, лекарства, упаковки, посуду, витамины, корм для животных.\n"
+        "2. Если продукт упоминается, но он явно не предназначен для еды (например, шампунь с экстрактом фруктов), игнорируй его.\n"
+        "3. Удали всё лишнее. Верни **ТОЛЬКО** названия съедобных продуктов, через запятую, без дополнительных описаний или текста. Пример: 'яблоки, молоко, картошка, помидоры'.\n"
+        f"Не добавляй ничего, кроме списка продуктов. Пользователь прислал: {message}."
+    )
+    response = olama_nlp_generate(prompt)
+    return response
+
+def recomend_recipies(message: str) -> str:
+    prompt = (
+        "Пользователь прислал список продуктов. Твоя задача — предложить одно блюдо, "
+        "которое можно приготовить из этих продуктов, и указать, какие ингредиенты нужно докупить.\n\n"
+        
+        "Ответь без приветствия и лишних слов. Начни с предложения блюда и его краткого описания. "
+        "Затем, укажи список продуктов, которые необходимо докупить для этого блюда.\n\n"
+        
+        "Используй следующий формат:\n"
+        "Можно приготовить [название блюда]: [краткое описание блюда].\n"
+        "Для этого блюда нужно докупить:\n"
+        "- [список недостающих продуктов].\n\n"
+        
+        "Не давай дополнительных советов или подробностей, только рецепт и недостающие продукты.\n"
+        
+        f"Пользователь прислал: {message}."
+    )
+    response = olama_nlp_generate(prompt)
+    return response
+
+
+
+def update_products_with_ai(user_products: str, missing_products: str) -> str:
+    prompt = (
+        "Ты — помощник по продуктам. Пользователь прислал два списка:\n"
+        f"1. Текущий список продуктов: {user_products}\n"
+        f"2. Недостающие продукты из рецепта: {missing_products}\n\n"
+        "Твоя задача:\n"
+        "- Объединить два списка в один\n"
+        "- Удалить дубликаты\n"
+        "- Исключить несъедобные товары (бытовая химия, лекарства, посуда и т.д.)\n"
+        "- Вернуть ТОЛЬКО названия съедобных продуктов через запятую, без вступлений, пояснений или лишнего текста.\n"
+        "Формат ответа: продукт1, продукт2, продукт3"
+    )
+
+    response = olama_nlp_generate(prompt)
+    return response.strip()
+
+def update_products_with_ai(current_products: str, user_message: str) -> list:
+    prompt = (
+        f"У пользователя уже есть следующие продукты: {current_products}.\n\n"
+        f"Вот сообщение от ИИ, в котором указаны продукты, которые нужно докупить:\n\"\"\"\n{user_message}\n\"\"\"\n\n"
+        "Твоя задача:\n"
+        "- Извлеки из сообщения только те продукты, которые действительно нужно докупить.\n"
+        "- Если указано несколько альтернатив (например, \"Пшеничная булочка или пирожное тесто\"), выбери только один.\n"
+        "- Объедини имеющиеся продукты с недостающими, без повторений.\n"
+        "- Верни **только** обновлённый список ВСЕХ продуктов (!!!имеющихся + недостающих) **в виде продуктов через запятую **, "
+        "например: курица, колбаса, молоко, специи\n"
+        "- **Не добавляй никакой пояснительный текст, заголовки, markdown, описания — только список.**"
+    )
+
+    response = olama_nlp_generate(prompt)
+    return response.strip()
+
+
+
 
 def olama_nlp_generate(prompt, temperature=0.7, max_tokens=400):
-#     system_prompt = (
-#     "Ты — помощник по покупкам и кулинарии. Пользователь прислал сообщение со списком покупок или названием блюда.\n\n"
-#     "Твоя задача:\n"
-#     "1. Извлеки из сообщения только **съедобные продукты**. Игнорируй бытовую химию, упаковку, лекарства, корм для животных.\n"
-#     "2. Если указано блюдо (например, борщ, пицца, паста) — добавь недостающие **ингредиенты**, необходимые для его приготовления.\n"
-#     "3. Продукты пиши в нормальной форме (именительный падеж, единственное число): «лук», «помидоры», «яйцо».\n"
-#     "4. Не повторяй уже указанные продукты.\n"
-#     "5. Укажи, какие продукты добавлены и для какого блюда, коротко: «для борща — капуста, свекла».\n"
-#     "6. Формат ответа:\n"
-#     "   Продукты из сообщения: <...>\n"
-#     "   Добавлено: <...>\n"
-#     "   Причина: <...>\n\n"
-#     f"Сообщение пользователя: {prompt.strip()}"
-# )
-    
+
 
     system_prompt = (
         "Ты — интеллектуальный помощник покупателя и кулинара. Пользователь прислал сообщение, "
@@ -54,9 +115,9 @@ def olama_nlp_generate(prompt, temperature=0.7, max_tokens=400):
 
 
     payload = {
-        "model": "llama3:instruct",  
+        "model": "llama3:instruct",
         "messages": [
-            {"role": "user", "content": system_prompt}
+            {"role": "user", "content": prompt}
         ],
         "temperature": temperature,
         "max_tokens": max_tokens,
@@ -65,7 +126,31 @@ def olama_nlp_generate(prompt, temperature=0.7, max_tokens=400):
 
     try:
         response = requests.post(OLLAMA_API, json=payload)
-        return response.json()["message"]["content"]
+        logger.info(f"Ollama API response status: {response.status_code}")
+        if response.status_code == 200:
+            try:
+                # Try parsing JSON and extracting the message content
+                json_response = response.json()
+                logger.info(f"Response JSON: {json_response}")
+
+                message_content = json_response.get("message", {}).get("content", "")
+                if not message_content:
+                    logger.error("No 'content' in response message.")
+                    return "Ошибка: Неверный формат ответа от системы."
+
+                logger.info(f"Extracted message content: {message_content}")
+                return message_content
+
+            except ValueError:
+                logger.error("Failed to parse JSON response.")
+                return "Ошибка: Не удалось обработать ответ от системы."
+
+        else:
+            logger.error(f"Failed to get a valid response from Ollama API: {response.status_code}")
+            return f"Ошибка: Получен неверный ответ от сервера Ollama (код {response.status_code})."
+
     except requests.exceptions.RequestException as e:
         print(f"Ошибка при запросе к Ollama API: {e}")
         return f"Ошибка при запросе к Ollama API: {e} \n\n Sorry, I encountered an error while processing your request."
+
+# todo: add func to humanize output
